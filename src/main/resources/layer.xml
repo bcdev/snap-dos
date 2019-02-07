@@ -9,7 +9,7 @@
                 <attr name="delegate" methodvalue="org.esa.snap.core.gpf.ui.DefaultOperatorAction.create"/>
                 <attr name="displayName" stringvalue="Dark Object Subtraction"/>
                 <attr name="operatorName" stringvalue="Snap.DarkObjectSubtraction"/>
-                <attr name="dialogTitle" stringvalue="Dark Object Subtraction v0.8"/>
+                <attr name="dialogTitle" stringvalue="Dark Object Subtraction v1.0-SNAPSHOT"/>
                 <attr name="targetProductNameSuffix" stringvalue="_dos"/>
                 <attr name="helpId" stringvalue="darkObjectSubtraction"/>
             </file>
