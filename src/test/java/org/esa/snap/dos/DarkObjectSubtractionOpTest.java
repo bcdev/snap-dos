@@ -18,12 +18,13 @@ public class DarkObjectSubtractionOpTest {
 
     private int width;
     private int height;
+    private Product product;
 
     @Before
     public void setUp() {
         width = 4;
         height = 3;
-        final Product product = new Product("p1", "t", width, height);
+        product = new Product("p1", "t", width, height);
         targetBand1 = product.addBand("b1", ProductData.TYPE_FLOAT32);
 
         targetBand1.setDataElems(new float[]{
@@ -82,7 +83,7 @@ public class DarkObjectSubtractionOpTest {
         for (int i = 0; i < dataElems.length; i++) {
             if (!Float.isNaN((dataElems[i]))) {
                 final float subtractedDataElem = subtractedDataBuffer.getElemFloat(i);
-                assertEquals(scalingFactor*dataElems[i] - constValue, subtractedDataElem, 1.E-6);
+                assertEquals(scalingFactor * dataElems[i] - constValue, subtractedDataElem, 1.E-6);
             }
         }
     }
@@ -106,15 +107,31 @@ public class DarkObjectSubtractionOpTest {
         final RenderedOp subtractedImage = DarkObjectSubtractionOp.subtractConstantFromImage(origImage,
                                                                                              constValue);
 
+        // add subtracted elements to metadata:
+        final MetadataElement metadataRoot = product.getMetadataRoot();
+        assertNotNull(metadataRoot);
+        final MetadataElement darkObjectSpectralValueMetadataElement = new MetadataElement("Dark Object Spectral Value");
+        metadataRoot.addElement(darkObjectSpectralValueMetadataElement);
+
         assertNotNull(dataElems);
         final DataBuffer subtractedDataBuffer = subtractedImage.getData().getDataBuffer();
         assertNotNull(subtractedDataBuffer);
         for (int i = 0; i < dataElems.length; i++) {
             if (!Float.isNaN((dataElems[i]))) {
                 final float subtractedDataElem = subtractedDataBuffer.getElemFloat(i);
-                assertEquals((scalingFactor*dataElems[i] + scalingOffset) - constValue, subtractedDataElem, 1.E-6);
+                assertEquals((scalingFactor * dataElems[i] + scalingOffset) - constValue, subtractedDataElem, 1.E-6);
+
+                final MetadataAttribute dosAttr =
+                        new MetadataAttribute("B_" + i,
+                                              ProductData.createInstance(new float[]{subtractedDataElem}), true);
+                metadataRoot.getElement("Dark Object Spectral Value").addAttribute(dosAttr);
             }
         }
+
+        final MetadataAttribute[] darkObjectSpectralValueAttributes =
+                product.getMetadataRoot().getElement("Dark Object Spectral Value").getAttributes();
+        assertNotNull(darkObjectSpectralValueAttributes);
+        
     }
 
 

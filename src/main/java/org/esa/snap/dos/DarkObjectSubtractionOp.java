@@ -52,6 +52,8 @@ public class DarkObjectSubtractionOp extends Operator {
     @TargetProduct
     private Product targetProduct;
 
+    private final static String DARK_OBJECT_METADATA_GROUP_NAME = "Dark Object Spectral Values";
+
     private final static String TARGET_PRODUCT_NAME = "Dark-Object-Subtraction";
     private final static String TARGET_PRODUCT_TYPE = "dark-object-subtraction";
 
@@ -94,52 +96,6 @@ public class DarkObjectSubtractionOp extends Operator {
         }
     }
 
-//    @Override
-//    public void computeTileStack(Map<Band, Tile> targetTiles, Rectangle targetRectangle, ProgressMonitor pm) throws OperatorException {
-//        try {
-//            for (int i = 0; i < sourceBandNames.length; i++) {
-//                final Band sourceBand = sourceProduct.getBand(sourceBandNames[i]);
-//                if (sourceBand.getSpectralBandIndex() >= 0 && !Float.isNaN(sourceBand.getSpectralWavelength())) {
-//                    final Band targetBand = targetProduct.getBand(sourceBandNames[i]);
-//                    final Tile sourceTile = getSourceTile(sourceBand, targetRectangle);
-//                    for (int y = targetRectangle.y; y < targetRectangle.y + targetRectangle.height; y++) {
-//                        checkForCancellation();
-//                        for (int x = targetRectangle.x; x < targetRectangle.x + targetRectangle.width; x++) {
-//                            final double sourceSample = sourceTile.getSampleDouble(x, y);
-//                            targetTiles.get(targetBand).setSample(x, y, sourceSample - darkObjectValues[i]);
-//                        }
-//                    }
-//                }
-//            }
-//        } catch (Exception e) {
-//            throw new OperatorException(e);
-//        }
-//    }
-
-//    @Override
-//    public void computeTileStack(Map<Band, Tile> targetTiles, Rectangle targetRectangle, ProgressMonitor pm) throws OperatorException {
-//        try {
-//            for (int i = 0; i < sourceBandNames.length; i++) {
-//                final Band sourceBand = sourceProduct.getBand(sourceBandNames[i]);
-//                if (sourceBand.getSpectralBandIndex() >= 0 && !Float.isNaN(sourceBand.getSpectralWavelength())) {
-//                    final Band targetBand = targetProduct.getBand(sourceBandNames[i]);
-//                    final Tile sourceTile = getSourceTile(sourceBand, targetRectangle);
-//                    final ProductData rawSamples = sourceTile.getRawSamples();
-//                    short[] correctedArr = new short[rawSamples.getNumElems()];
-//                    ProductData correctedSamples = ProductData.createInstance(correctedArr);
-//                    for (int j = 0; j < correctedSamples.getNumElems(); j++) {
-//                        int corr = rawSamples.getElemIntAt(j) - (int) Math.round(sourceBand.scaleInverse(darkObjectValues[i]));
-//                        correctedSamples.setElemIntAt(j, corr);
-//                    }
-//                    final Tile targetTile = targetTiles.get(targetBand);
-//                    targetTile.setRawSamples(correctedSamples);
-//                }
-//            }
-//        } catch (Exception e) {
-//            throw new OperatorException(e);
-//        }
-//    }
-
     static RenderedOp subtractConstantFromImage(RenderedImage image, double constantValue) {
         // Create the constant values.
         ParameterBlock pb1 = new ParameterBlock();
@@ -170,9 +126,9 @@ public class DarkObjectSubtractionOp extends Operator {
 
         double sum = 0.0;
         for (int i = 0; i < numBins; i++) {
-            final double binValue = lowValue + i*(highValue-lowValue)/(numBins-1);
+            final double binValue = lowValue + i * (highValue - lowValue) / (numBins - 1);
             sum += h.getBins()[0][i];
-            if (sum >= percentile*h.getTotals()[0]/100.0) {
+            if (sum >= percentile * h.getTotals()[0] / 100.0) {
                 return binValue;
             }
         }
@@ -180,12 +136,17 @@ public class DarkObjectSubtractionOp extends Operator {
     }
 
     private void applyDarkObjectSubtraction(ProgressMonitor pm) {
+        // add new metadata group for dark object values
+        final MetadataElement darkObjectSpectralValueMetadataElement = new MetadataElement(DARK_OBJECT_METADATA_GROUP_NAME);
+        targetProduct.getMetadataRoot().addElement(darkObjectSpectralValueMetadataElement);
+
         for (int i = 0; i < sourceBandNames.length; i++) {
             final String sourceBandName = sourceBandNames[i];
             checkForCancellation();
             System.out.println("sourceBandName = " + sourceBandName);
             Band sourceBand = sourceProduct.getBand(sourceBandName);
-            if (sourceBand.getSpectralBandIndex() >= 0 && !Float.isNaN(sourceBand.getSpectralWavelength())) {
+
+            if (sourceBand.getSpectralWavelength() > 0) {
                 Stx stx;
                 if (maskExpression == null || maskExpression.isEmpty()) {
                     final long t1 = System.currentTimeMillis();
@@ -204,13 +165,17 @@ public class DarkObjectSubtractionOp extends Operator {
                     final long t2 = System.currentTimeMillis();
                     System.out.println("computation time for stx with Mask: " + (t2 - t1) + " ms");
                 }
-//                darkObjectValues[i] = getHistogramMinimum(stx);
                 darkObjectValues[i] = getHistogramMinAtPercentile(stx, histogramMinimumPercentile);
                 System.out.println("darkObjectValue for '" + sourceBandName + "' : " + darkObjectValues[i]);
 
                 final RenderedOp subtractedImage = subtractConstantFromImage(sourceBand.getGeophysicalImage(),
                                                                              darkObjectValues[i]);
                 targetProduct.getBand(sourceBandName).setSourceImage(subtractedImage);
+
+                // add dark object value to metadata
+                final MetadataAttribute dosAttr = new MetadataAttribute(sourceBandName,
+                                                  ProductData.createInstance(new double[]{darkObjectValues[i]}), true);
+                targetProduct.getMetadataRoot().getElement(DARK_OBJECT_METADATA_GROUP_NAME).addAttribute(dosAttr);
             }
             pm.worked(1);
         }
@@ -230,7 +195,8 @@ public class DarkObjectSubtractionOp extends Operator {
 
         for (String sourceBandName : sourceBandNames) {
             Band sourceBand = sourceProduct.getBand(sourceBandName);
-            if (sourceBand.getSpectralBandIndex() >= 0 && !Float.isNaN(sourceBand.getSpectralWavelength())) {
+//            if (sourceBand.getSpectralBandIndex() >= 0 && !Float.isNaN(sourceBand.getSpectralWavelength())) {
+            if (sourceBand.getSpectralWavelength() > 0) {
                 final Band targetBand = new Band(sourceBand.getName(), ProductData.TYPE_FLOAT32, sceneWidth, sceneHeight);
                 targetProduct.addBand(targetBand);
                 ProductUtils.copySpectralBandProperties(sourceBand, targetBand);
