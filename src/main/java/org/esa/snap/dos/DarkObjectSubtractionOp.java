@@ -82,19 +82,31 @@ public class DarkObjectSubtractionOp extends Operator {
         targetProduct = createTargetProduct();
 
         setTargetProduct(targetProduct);
+
+        applyDarkObjectSubtraction(null);
     }
 
-    @Override
-    public void doExecute(ProgressMonitor pm) throws OperatorException {
-        try {
-            pm.beginTask("Executing dark object subtraction...", 0);
-            applyDarkObjectSubtraction(pm);
-        } catch (Exception e) {
-            throw new OperatorException(e.getMessage(), e);
-        } finally {
-            pm.done();
-        }
-    }
+    // todo:
+    // The setup with applying the DOS in doExecute with JAI imaging does not yet work reliably.
+    // The reason is that we have not implemented computeTile nor computeTileStack here because it is not needed,
+    // but the framework calls computeTile although it should not do so, and at the time of the call the
+    // source image of the target tile might not yet be set, so we may have empty tiles in the target product.
+
+    // The issue must be fixed in GPF. For the time being, the 'applyDarkObjectSubtraction' method is just moved into
+    // initialize, which works fine. A cleaner way would be just to retrieve the DOS constants in initialize,
+    // and to implement computeTile and do the subtraction manually there.
+
+//    @Override
+//    public void doExecute(ProgressMonitor pm) throws OperatorException {
+//        try {
+//            pm.beginTask("Executing dark object subtraction...", 0);
+//            applyDarkObjectSubtraction(pm);
+//        } catch (Exception e) {
+//            throw new OperatorException(e.getMessage(), e);
+//        } finally {
+//            pm.done();
+//        }
+//    }
 
     static RenderedOp subtractConstantFromImage(RenderedImage image, double constantValue) {
         // Create the constant values.
@@ -177,7 +189,9 @@ public class DarkObjectSubtractionOp extends Operator {
                                                   ProductData.createInstance(new double[]{darkObjectValues[i]}), true);
                 targetProduct.getMetadataRoot().getElement(DARK_OBJECT_METADATA_GROUP_NAME).addAttribute(dosAttr);
             }
-            pm.worked(1);
+            if (pm != null) {
+                pm.worked(1);
+            }
         }
     }
 
@@ -195,12 +209,10 @@ public class DarkObjectSubtractionOp extends Operator {
 
         for (String sourceBandName : sourceBandNames) {
             Band sourceBand = sourceProduct.getBand(sourceBandName);
-//            if (sourceBand.getSpectralBandIndex() >= 0 && !Float.isNaN(sourceBand.getSpectralWavelength())) {
             if (sourceBand.getSpectralWavelength() > 0) {
                 final Band targetBand = new Band(sourceBand.getName(), ProductData.TYPE_FLOAT32, sceneWidth, sceneHeight);
                 targetProduct.addBand(targetBand);
                 ProductUtils.copySpectralBandProperties(sourceBand, targetBand);
-//                ProductUtils.copyRasterDataNodeProperties(sourceBand, targetBand);
                 ProductUtils.copyGeoCoding(sourceBand, targetBand);
                 targetBand.setDescription(sourceBand.getDescription());
                 targetBand.setUnit(sourceBand.getUnit());
