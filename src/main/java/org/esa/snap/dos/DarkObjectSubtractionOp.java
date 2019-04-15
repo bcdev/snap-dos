@@ -93,7 +93,7 @@ public class DarkObjectSubtractionOp extends Operator {
     // source image of the target tile might not yet be set, so we may have empty tiles in the target product.
 
     // The issue must be fixed in GPF. For the time being, the 'applyDarkObjectSubtraction' method is just moved into
-    // initialize, which works fine. A cleaner way would be just to retrieve the DOS constants in initialize,
+    // initialize, which works fine. A cleaner way would be just to retrieve the DOS constants in doExecute,
     // and to implement computeTile and do the subtraction manually there.
 
 //    @Override
